@@ -1,390 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lecture attendance check-in</title>
-  <style>
-    :root {
-      font-family: Arial, Helvetica, sans-serif;
-      color-scheme: light;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: #f4f6f8;
-      color: #1f2937;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-    .card {
-      width: min(100%, 540px);
-      background: #fff;
-      border-radius: 16px;
-      padding: 28px;
-      box-shadow: 0 10px 35px rgba(0,0,0,.10);
-    }
-    h1 { margin: 0 0 8px; font-size: 1.55rem; }
-    p { line-height: 1.45; }
-    .lecture {
-      margin: 16px 0;
-      padding: 14px;
-      border-radius: 10px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-    }
-    .lecture strong { display: block; margin-bottom: 4px; }
-    .notice {
-      margin: 18px 0;
-      padding: 14px;
-      background: #eef2f7;
-      border-radius: 10px;
-      font-size: .95rem;
-    }
-    label {
-      display: block;
-      font-weight: 700;
-      margin: 18px 0 8px;
-    }
-    input, button {
-      width: 100%;
-      min-height: 48px;
-      border-radius: 9px;
-      font-size: 1rem;
-    }
-    input {
-      border: 1px solid #cbd5e1;
-      padding: 11px 12px;
-    }
-    button {
-      margin-top: 16px;
-      border: 0;
-      background: #111827;
-      color: white;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    button:disabled { opacity: .55; cursor: wait; }
-    #status {
-      margin-top: 18px;
-      min-height: 24px;
-      line-height: 1.4;
-      font-weight: 700;
-    }
-    .small {
-      margin-top: 18px;
-      font-size: .82rem;
-      color: #64748b;
-      line-height: 1.4;
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lecture attendance check-in</title>
+<style>
+:root{font-family:Arial,Helvetica,sans-serif;color-scheme:light}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#f4f6f8;color:#1f2937;display:grid;place-items:center;padding:24px}.card{width:min(100%,540px);background:#fff;border-radius:16px;padding:28px;box-shadow:0 10px 35px rgba(0,0,0,.10)}h1{margin:0 0 8px;font-size:1.55rem}p{line-height:1.45}.lecture{margin:16px 0;padding:14px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}.lecture strong{display:block;margin-bottom:4px}.notice{margin:18px 0;padding:14px;background:#eef2f7;border-radius:10px;font-size:.95rem}label{display:block;font-weight:700;margin:18px 0 8px}input,button{width:100%;min-height:48px;border-radius:9px;font-size:1rem}input{border:1px solid #cbd5e1;padding:11px 12px}button{margin-top:16px;border:0;background:#111827;color:#fff;font-weight:700;cursor:pointer}button:disabled{opacity:.55;cursor:wait}#status{margin-top:18px;min-height:24px;line-height:1.4;font-weight:700}.small{margin-top:18px;font-size:.82rem;color:#64748b;line-height:1.4}
+</style>
 </head>
 <body>
-  <main class="card">
-    <h1>Lecture attendance</h1>
-    <p>Enter your student number and allow this page to check your current location.</p>
-
-    <div class="lecture">
-      <strong id="lectureTitle">Loading lecture…</strong>
-      <span id="lectureMeta"></span>
-    </div>
-
-    <div class="notice">
-      Your student number, check-in time, location and GPS accuracy are recorded
-      for attendance verification. Your browser will ask before sharing location.
-    </div>
-
-    <label for="studentNumber">Student number</label>
-    <input
-      id="studentNumber"
-      inputmode="numeric"
-      autocomplete="off"
-      placeholder="e.g. 214123456"
-      maxlength="30"
-    >
-
-    <button id="checkInButton" type="button" disabled>CHECK IN</button>
-    <div id="status" role="status" aria-live="polite">Loading attendance configuration…</div>
-
-    <div class="small">
-      Indoor GPS can be imprecise. Borderline readings are recorded for review rather
-      than automatically treated as an absence.
-    </div>
-  </main>
-
+<main class="card">
+<h1>Lecture attendance</h1>
+<p>Enter your student number and allow this page to check your current location.</p>
+<div class="lecture"><strong id="lectureTitle">Loading lecture…</strong><span id="lectureMeta"></span></div>
+<div class="notice">Your student number, check-in time, location and GPS accuracy are recorded for attendance verification. Your browser will ask before sharing location.</div>
+<label for="studentNumber">Student number</label>
+<input id="studentNumber" inputmode="numeric" autocomplete="off" placeholder="e.g. 214123456" maxlength="30">
+<button id="checkInButton" type="button" disabled>CHECK IN</button>
+<div id="status" role="status" aria-live="polite">Loading attendance configuration…</div>
+<div class="small">Indoor GPS can be imprecise. Borderline readings are recorded for review rather than automatically treated as an absence.</div>
+</main>
 <script>
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDU1p3nU3ZycPB_ifjmeoh3OJOGNM08lLLKyZo0PeJ8RJAS2GBdza-lcvRzHLv1777rA/exec';
-
-  // Keeps the existing plain Bywoning URL working for the current lecture.
-  // New QR codes should use ?lecture=YOUR-CODE.
-  const DEFAULT_LECTURE_CODE = 'ELEC-AB-L04';
-
-  const params = new URLSearchParams(window.location.search);
-  const LECTURE_CODE =
-    (params.get('lecture') || params.get('session') || DEFAULT_LECTURE_CODE).trim();
-
-  let CONFIG = null;
-
-  const statusEl = document.getElementById('status');
-  const buttonEl = document.getElementById('checkInButton');
-  const titleEl = document.getElementById('lectureTitle');
-  const metaEl = document.getElementById('lectureMeta');
-
-  function attendanceConfigCallback(data) {
-    if (!data || !data.ok) {
-      CONFIG = null;
-      buttonEl.disabled = true;
-      titleEl.textContent = 'Attendance unavailable';
-      metaEl.textContent = '';
-      statusEl.textContent =
-        (data && data.error) ? data.error : 'Could not load the lecture configuration.';
-      return;
-    }
-
-    CONFIG = data;
-    titleEl.textContent = data.description || data.lectureCode;
-    metaEl.textContent = `${data.lectureCode} · ${data.venueCode}`;
-    statusEl.textContent = 'Ready to check in.';
-    buttonEl.disabled = false;
-  }
-
-  function loadConfiguration() {
-    const script = document.createElement('script');
-    script.src =
-      APPS_SCRIPT_URL +
-      '?action=config&lecture=' + encodeURIComponent(LECTURE_CODE) +
-      '&_=' + Date.now();
-    script.async = true;
-    script.onerror = function() {
-      CONFIG = null;
-      buttonEl.disabled = true;
-      titleEl.textContent = 'Attendance unavailable';
-      statusEl.textContent =
-        'Could not contact the attendance service. Please tell the lecturer.';
-    };
-    document.body.appendChild(script);
-  }
-
-  function projectToMetres(point, origin) {
-    const R = 6371000;
-    const latRad = origin.lat * Math.PI / 180;
-    return {
-      x: (point.lng - origin.lng) * Math.PI / 180 * R * Math.cos(latRad),
-      y: (point.lat - origin.lat) * Math.PI / 180 * R
-    };
-  }
-
-  function pointInPolygon(point, polygon) {
-    const origin = polygon[0];
-    const p = projectToMetres(point, origin);
-    const poly = polygon.map(v => projectToMetres(v, origin));
-    let inside = false;
-
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const xi = poly[i].x, yi = poly[i].y;
-      const xj = poly[j].x, yj = poly[j].y;
-      const intersects =
-        ((yi > p.y) !== (yj > p.y)) &&
-        (p.x < (xj - xi) * (p.y - yi) / ((yj - yi) || Number.EPSILON) + xi);
-      if (intersects) inside = !inside;
-    }
-    return inside;
-  }
-
-  function distancePointToSegment(p, a, b) {
-    const abx = b.x - a.x;
-    const aby = b.y - a.y;
-    const apx = p.x - a.x;
-    const apy = p.y - a.y;
-    const ab2 = abx * abx + aby * aby;
-
-    if (ab2 === 0) return Math.hypot(apx, apy);
-
-    let t = (apx * abx + apy * aby) / ab2;
-    t = Math.max(0, Math.min(1, t));
-
-    const closestX = a.x + t * abx;
-    const closestY = a.y + t * aby;
-    return Math.hypot(p.x - closestX, p.y - closestY);
-  }
-
-  function distanceToPolygonMetres(point, polygon) {
-    const origin = polygon[0];
-    const p = projectToMetres(point, origin);
-    const poly = polygon.map(v => projectToMetres(v, origin));
-
-    if (pointInPolygon(point, polygon)) return 0;
-
-    let minDistance = Infinity;
-    for (let i = 0; i < poly.length; i++) {
-      const a = poly[i];
-      const b = poly[(i + 1) % poly.length];
-      minDistance = Math.min(minDistance, distancePointToSegment(p, a, b));
-    }
-    return minDistance;
-  }
-
-  // This is only for the message shown to the student.
-  // The Apps Script backend independently recalculates the authoritative status.
-  function classifyForDisplay(coords) {
-    const point = { lat: coords.latitude, lng: coords.longitude };
-    const polygon = CONFIG.polygon;
-    const inside = pointInPolygon(point, polygon);
-    const distance = distanceToPolygonMetres(point, polygon);
-    const accuracy = Number(coords.accuracy);
-    const tolerance = Number(CONFIG.toleranceMetres);
-    const maxAccuracy = Number(CONFIG.maxGpsAccuracyMetres);
-
-    if (inside) {
-      return accuracy <= maxAccuracy
-        ? { status: 'PRESENT_INSIDE_BUILDING', distance }
-        : { status: 'UNCERTAIN_GPS_ACCURACY', distance };
-    }
-
-    if (distance <= tolerance) {
-      return accuracy <= maxAccuracy
-        ? { status: 'PRESENT_WITHIN_TOLERANCE', distance }
-        : { status: 'UNCERTAIN_GPS_ACCURACY', distance };
-    }
-
-    // If the entire GPS uncertainty circle still falls short of the venue,
-    // the person is clearly outside even if reported accuracy is mediocre.
-    if (Number.isFinite(accuracy) && distance > tolerance + accuracy) {
-      return { status: 'OUTSIDE_BUILDING', distance };
-    }
-
-    return { status: 'UNCERTAIN_GPS_ACCURACY', distance };
-  }
-
-  function sendLog(payload) {
-    const body = new URLSearchParams();
-    Object.entries(payload).forEach(([key, value]) => {
-      body.append(key, value == null ? '' : String(value));
-    });
-
-    if (navigator.sendBeacon && navigator.sendBeacon(APPS_SCRIPT_URL, body)) {
-      return Promise.resolve(true);
-    }
-
-    return fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body
-    }).then(() => true);
-  }
-
-  function redirectToForm() {
-    window.location.replace(CONFIG.formUrl);
-  }
-
-  async function checkIn() {
-    const studentNumber =
-      document.getElementById('studentNumber').value.trim();
-
-    if (!CONFIG) {
-      statusEl.textContent = 'Lecture configuration has not loaded.';
-      return;
-    }
-
-    if (!studentNumber) {
-      statusEl.textContent = 'Please enter your student number.';
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      statusEl.textContent = 'This browser does not support location checking.';
-      return;
-    }
-
-    buttonEl.disabled = true;
-    statusEl.textContent = 'Checking your location…';
-
-    navigator.geolocation.getCurrentPosition(
-      async position => {
-        const c = position.coords;
-        const displayResult = classifyForDisplay(c);
-
-        const payload = {
-          lectureCode: CONFIG.lectureCode,
-          studentNumber,
-          clientTimestamp: new Date().toISOString(),
-          latitude: c.latitude,
-          longitude: c.longitude,
-          accuracyMetres: c.accuracy,
-          altitude: c.altitude ?? '',
-          altitudeAccuracy: c.altitudeAccuracy ?? '',
-          heading: c.heading ?? '',
-          speed: c.speed ?? '',
-          userAgent: navigator.userAgent
-        };
-
-        try {
-          await sendLog(payload);
-        } catch (err) {
-          console.error(err);
-          statusEl.textContent =
-            'Your location was checked, but the attendance log could not be saved.';
-          buttonEl.disabled = false;
-          return;
-        }
-
-        if (displayResult.status === 'PRESENT_INSIDE_BUILDING') {
-          statusEl.textContent = 'Location confirmed. Opening attendance form…';
-        } else if (displayResult.status === 'PRESENT_WITHIN_TOLERANCE') {
-          statusEl.textContent =
-            'Location confirmed within GPS tolerance. Opening form…';
-        } else if (displayResult.status === 'OUTSIDE_BUILDING') {
-          statusEl.textContent =
-            'Your location appears to be outside the lecture venue. The check has been logged. Opening form…';
-        } else {
-          statusEl.textContent =
-            'Your GPS reading is borderline or imprecise. It has been logged for review. Opening form…';
-        }
-
-        setTimeout(redirectToForm, 800);
-      },
-
-      async error => {
-        const errorNames = {
-          1: 'LOCATION_PERMISSION_DENIED',
-          2: 'LOCATION_UNAVAILABLE',
-          3: 'LOCATION_TIMEOUT'
-        };
-
-        const payload = {
-          lectureCode: CONFIG.lectureCode,
-          studentNumber,
-          clientTimestamp: new Date().toISOString(),
-          latitude: '',
-          longitude: '',
-          accuracyMetres: '',
-          locationError: errorNames[error.code] || 'LOCATION_ERROR',
-          errorMessage: error.message || '',
-          userAgent: navigator.userAgent
-        };
-
-        try { await sendLog(payload); } catch (_) {}
-
-        statusEl.textContent =
-          error.code === 1
-            ? 'Location permission was not granted. This has been logged. Opening form…'
-            : 'The phone could not provide a usable location. This has been logged. Opening form…';
-
-        setTimeout(redirectToForm, 1000);
-      },
-
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
-      }
-    );
-  }
-
-  buttonEl.addEventListener('click', checkIn);
-  loadConfiguration();
+const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwaCvZweQevty6Llc_amHXqYixQJmD58qkqitxllOk_JtLIZPbK-brEbLtsRKlqyxwKfQ/exec';
+const DEFAULT_LECTURE_CODE='ELEC-AB-L04';
+const params=new URLSearchParams(location.search);
+const LECTURE_CODE=(params.get('lecture')||params.get('session')||DEFAULT_LECTURE_CODE).trim();
+let CONFIG=null;
+const statusEl=document.getElementById('status'),buttonEl=document.getElementById('checkInButton'),titleEl=document.getElementById('lectureTitle'),metaEl=document.getElementById('lectureMeta');
+function attendanceConfigCallback(data){
+ if(!data||!data.ok){CONFIG=null;buttonEl.disabled=true;titleEl.textContent='Attendance unavailable';metaEl.textContent='';statusEl.textContent=data&&data.error?data.error:'Could not load the lecture configuration.';return}
+ CONFIG=data;titleEl.textContent=data.description||data.lectureCode;metaEl.textContent=`${data.lectureCode} · ${data.venueCode}`;statusEl.textContent='Ready to check in.';buttonEl.disabled=false
+}
+function loadConfiguration(){const s=document.createElement('script');s.src=APPS_SCRIPT_URL+'?action=config&lecture='+encodeURIComponent(LECTURE_CODE)+'&_='+Date.now();s.async=true;s.onerror=()=>{CONFIG=null;buttonEl.disabled=true;titleEl.textContent='Attendance unavailable';statusEl.textContent='Could not contact the attendance service. Please tell the lecturer.'};document.body.appendChild(s)}
+function projectToMetres(point,origin){const R=6371000,latRad=origin.lat*Math.PI/180;return{x:(point.lng-origin.lng)*Math.PI/180*R*Math.cos(latRad),y:(point.lat-origin.lat)*Math.PI/180*R}}
+function pointInPolygon(point,polygon){const origin=polygon[0],p=projectToMetres(point,origin),poly=polygon.map(v=>projectToMetres(v,origin));let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;const hit=((yi>p.y)!=(yj>p.y))&&(p.x<(xj-xi)*(p.y-yi)/((yj-yi)||Number.EPSILON)+xi);if(hit)inside=!inside}return inside}
+function distancePointToSegment(p,a,b){const abx=b.x-a.x,aby=b.y-a.y,apx=p.x-a.x,apy=p.y-a.y,ab2=abx*abx+aby*aby;if(ab2===0)return Math.hypot(apx,apy);let t=(apx*abx+apy*aby)/ab2;t=Math.max(0,Math.min(1,t));return Math.hypot(p.x-(a.x+t*abx),p.y-(a.y+t*aby))}
+function distanceToPolygonMetres(point,polygon){const origin=polygon[0],p=projectToMetres(point,origin),poly=polygon.map(v=>projectToMetres(v,origin));if(pointInPolygon(point,polygon))return 0;let d=Infinity;for(let i=0;i<poly.length;i++)d=Math.min(d,distancePointToSegment(p,poly[i],poly[(i+1)%poly.length]));return d}
+function classifyForDisplay(c){const point={lat:c.latitude,lng:c.longitude},polygon=CONFIG.polygon,inside=pointInPolygon(point,polygon),distance=distanceToPolygonMetres(point,polygon),accuracy=Number(c.accuracy),tolerance=Number(CONFIG.toleranceMetres),maxAccuracy=Number(CONFIG.maxGpsAccuracyMetres);if(inside)return{status:accuracy<=maxAccuracy?'PRESENT_INSIDE_BUILDING':'UNCERTAIN_GPS_ACCURACY',distance};if(distance<=tolerance)return{status:accuracy<=maxAccuracy?'PRESENT_WITHIN_TOLERANCE':'UNCERTAIN_GPS_ACCURACY',distance};if(Number.isFinite(accuracy)&&distance>tolerance+accuracy)return{status:'OUTSIDE_BUILDING',distance};return{status:'UNCERTAIN_GPS_ACCURACY',distance}}
+function sendLog(payload){const body=new URLSearchParams();Object.entries(payload).forEach(([k,v])=>body.append(k,v==null?'':String(v)));if(navigator.sendBeacon&&navigator.sendBeacon(APPS_SCRIPT_URL,body))return Promise.resolve(true);return fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body}).then(()=>true)}
+function redirectToForm(){location.replace(CONFIG.formUrl)}
+async function checkIn(){const studentNumber=document.getElementById('studentNumber').value.trim();if(!CONFIG){statusEl.textContent='Lecture configuration has not loaded.';return}if(!studentNumber){statusEl.textContent='Please enter your student number.';return}if(!navigator.geolocation){statusEl.textContent='This browser does not support location checking.';return}buttonEl.disabled=true;statusEl.textContent='Checking your location…';navigator.geolocation.getCurrentPosition(async position=>{const c=position.coords,result=classifyForDisplay(c),payload={lectureCode:CONFIG.lectureCode,studentNumber,clientTimestamp:new Date().toISOString(),latitude:c.latitude,longitude:c.longitude,accuracyMetres:c.accuracy,altitude:c.altitude??'',altitudeAccuracy:c.altitudeAccuracy??'',heading:c.heading??'',speed:c.speed??'',userAgent:navigator.userAgent};try{await sendLog(payload)}catch(e){console.error(e);statusEl.textContent='Your location was checked, but the attendance log could not be saved.';buttonEl.disabled=false;return}if(result.status==='PRESENT_INSIDE_BUILDING')statusEl.textContent='Location confirmed. Opening attendance form…';else if(result.status==='PRESENT_WITHIN_TOLERANCE')statusEl.textContent='Location confirmed within GPS tolerance. Opening form…';else if(result.status==='OUTSIDE_BUILDING')statusEl.textContent='Your location appears to be outside the lecture venue. The check has been logged. Opening form…';else statusEl.textContent='Your GPS reading is borderline or imprecise. It has been logged for review. Opening form…';setTimeout(redirectToForm,800)},async error=>{const names={1:'LOCATION_PERMISSION_DENIED',2:'LOCATION_UNAVAILABLE',3:'LOCATION_TIMEOUT'},payload={lectureCode:CONFIG.lectureCode,studentNumber,clientTimestamp:new Date().toISOString(),latitude:'',longitude:'',accuracyMetres:'',locationError:names[error.code]||'LOCATION_ERROR',errorMessage:error.message||'',userAgent:navigator.userAgent};try{await sendLog(payload)}catch(_){}statusEl.textContent=error.code===1?'Location permission was not granted. This has been logged. Opening form…':'The phone could not provide a usable location. This has been logged. Opening form…';setTimeout(redirectToForm,1000)},{enableHighAccuracy:true,timeout:15000,maximumAge:0})}
+buttonEl.addEventListener('click',checkIn);loadConfiguration();
 </script>
 </body>
 </html>
