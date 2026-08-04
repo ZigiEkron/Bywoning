@@ -13,12 +13,12 @@
 <h1>Lecture attendance</h1>
 <p>Enter your student number and allow this page to check your current location.</p>
 <div class="lecture"><strong id="lectureTitle">Loading lecture…</strong><span id="lectureMeta"></span></div>
-<div class="notice">Your student number, check-in time, location and GPS accuracy are recorded for attendance verification. Your browser will ask before sharing location.</div>
+<div class="notice">Location access is required to continue to the attendance form. Your student number, check-in time, location and GPS accuracy are recorded for attendance verification. Your browser will ask before sharing location.</div>
 <label for="studentNumber">Student number</label>
 <input id="studentNumber" inputmode="numeric" autocomplete="off" placeholder="e.g. 214123456" maxlength="30">
 <button id="checkInButton" type="button" disabled>CHECK IN</button>
 <div id="status" role="status" aria-live="polite">Loading attendance configuration…</div>
-<div class="small">Indoor GPS can be imprecise. Borderline readings are recorded for review rather than automatically treated as an absence.</div>
+<div class="small">Indoor GPS can be imprecise. Borderline readings are recorded for review. A clearly outside-venue reading will not open the attendance form.</div>
 </main>
 <script>
 const APPS_SCRIPT_URL='https://script.google.com/macros/s/AKfycbzeq2Lwt2afvi9akngrJa6tAHA7SMhlqdKZHNwuqnrMwxuiPl9rwkNlGydbtUYraxxMJw/exec';
@@ -39,7 +39,33 @@ function distanceToPolygonMetres(point,polygon){const origin=polygon[0],p=projec
 function classifyForDisplay(c){const point={lat:c.latitude,lng:c.longitude},polygon=CONFIG.polygon,inside=pointInPolygon(point,polygon),distance=distanceToPolygonMetres(point,polygon),accuracy=Number(c.accuracy),tolerance=Number(CONFIG.toleranceMetres),maxAccuracy=Number(CONFIG.maxGpsAccuracyMetres);if(inside)return{status:accuracy<=maxAccuracy?'PRESENT_INSIDE_BUILDING':'UNCERTAIN_GPS_ACCURACY',distance};if(distance<=tolerance)return{status:accuracy<=maxAccuracy?'PRESENT_WITHIN_TOLERANCE':'UNCERTAIN_GPS_ACCURACY',distance};if(Number.isFinite(accuracy)&&distance>tolerance+accuracy)return{status:'OUTSIDE_BUILDING',distance};return{status:'UNCERTAIN_GPS_ACCURACY',distance}}
 function sendLog(payload){const body=new URLSearchParams();Object.entries(payload).forEach(([k,v])=>body.append(k,v==null?'':String(v)));if(navigator.sendBeacon&&navigator.sendBeacon(APPS_SCRIPT_URL,body))return Promise.resolve(true);return fetch(APPS_SCRIPT_URL,{method:'POST',mode:'no-cors',body}).then(()=>true)}
 function redirectToForm(){location.replace(CONFIG.formUrl)}
-async function checkIn(){const studentNumber=document.getElementById('studentNumber').value.trim();if(!CONFIG){statusEl.textContent='Lecture configuration has not loaded.';return}if(!studentNumber){statusEl.textContent='Please enter your student number.';return}if(!navigator.geolocation){statusEl.textContent='This browser does not support location checking.';return}buttonEl.disabled=true;statusEl.textContent='Checking your location…';navigator.geolocation.getCurrentPosition(async position=>{const c=position.coords,result=classifyForDisplay(c),payload={lectureCode:CONFIG.lectureCode,studentNumber,clientTimestamp:new Date().toISOString(),latitude:c.latitude,longitude:c.longitude,accuracyMetres:c.accuracy,altitude:c.altitude??'',altitudeAccuracy:c.altitudeAccuracy??'',heading:c.heading??'',speed:c.speed??'',userAgent:navigator.userAgent};try{await sendLog(payload)}catch(e){console.error(e);statusEl.textContent='Your location was checked, but the attendance log could not be saved.';buttonEl.disabled=false;return}if(result.status==='PRESENT_INSIDE_BUILDING')statusEl.textContent='Location confirmed. Opening attendance form…';else if(result.status==='PRESENT_WITHIN_TOLERANCE')statusEl.textContent='Location confirmed within GPS tolerance. Opening form…';else if(result.status==='OUTSIDE_BUILDING')statusEl.textContent='Your location appears to be outside the lecture venue. The check has been logged. Opening form…';else statusEl.textContent='Your GPS reading is borderline or imprecise. It has been logged for review. Opening form…';setTimeout(redirectToForm,800)},async error=>{const names={1:'LOCATION_PERMISSION_DENIED',2:'LOCATION_UNAVAILABLE',3:'LOCATION_TIMEOUT'},payload={lectureCode:CONFIG.lectureCode,studentNumber,clientTimestamp:new Date().toISOString(),latitude:'',longitude:'',accuracyMetres:'',locationError:names[error.code]||'LOCATION_ERROR',errorMessage:error.message||'',userAgent:navigator.userAgent};try{await sendLog(payload)}catch(_){}statusEl.textContent=error.code===1?'Location permission was not granted. This has been logged. Opening form…':'The phone could not provide a usable location. This has been logged. Opening form…';setTimeout(redirectToForm,1000)},{enableHighAccuracy:true,timeout:15000,maximumAge:0})}
+function unblock(message){statusEl.textContent=message;buttonEl.disabled=false}
+async function checkIn(){
+ const studentNumber=document.getElementById('studentNumber').value.trim();
+ if(!CONFIG){statusEl.textContent='Lecture configuration has not loaded.';return}
+ if(!studentNumber){statusEl.textContent='Please enter your student number.';return}
+ if(!navigator.geolocation){statusEl.textContent='This browser does not support location checking, so the attendance form cannot be opened.';return}
+ buttonEl.disabled=true;statusEl.textContent='Checking your location…';
+ navigator.geolocation.getCurrentPosition(async position=>{
+  const c=position.coords,result=classifyForDisplay(c),payload={lectureCode:CONFIG.lectureCode,studentNumber,clientTimestamp:new Date().toISOString(),latitude:c.latitude,longitude:c.longitude,accuracyMetres:c.accuracy,altitude:c.altitude??'',altitudeAccuracy:c.altitudeAccuracy??'',heading:c.heading??'',speed:c.speed??'',userAgent:navigator.userAgent};
+  try{await sendLog(payload)}catch(e){console.error(e);unblock('Your location was obtained, but the attendance log could not be saved. Please try again.');return}
+  if(result.status==='OUTSIDE_BUILDING'){
+   unblock('Your location appears to be outside the lecture venue. The attendance form will not open. If you are in the venue, move closer to a window or entrance and try again.');
+   return;
+  }
+  if(result.status==='PRESENT_INSIDE_BUILDING')statusEl.textContent='Location confirmed. Opening attendance form…';
+  else if(result.status==='PRESENT_WITHIN_TOLERANCE')statusEl.textContent='Location confirmed within GPS tolerance. Opening attendance form…';
+  else statusEl.textContent='Your GPS reading is imprecise, but a location was received and logged for review. Opening attendance form…';
+  setTimeout(redirectToForm,800)
+ },async error=>{
+  const names={1:'LOCATION_PERMISSION_DENIED',2:'LOCATION_UNAVAILABLE',3:'LOCATION_TIMEOUT'},payload={lectureCode:CONFIG.lectureCode,studentNumber,clientTimestamp:new Date().toISOString(),latitude:'',longitude:'',accuracyMetres:'',locationError:names[error.code]||'LOCATION_ERROR',errorMessage:error.message||'',userAgent:navigator.userAgent};
+  try{await sendLog(payload)}catch(_){}
+  if(error.code===1)unblock('Location access is required to continue. Please allow location access for this site and try again.');
+  else if(error.code===2)unblock('Your phone could not provide a location. Please make sure Location Services are enabled and try again.');
+  else if(error.code===3)unblock('Location checking timed out. Please try again, preferably near a window or entrance.');
+  else unblock('A usable location could not be obtained. Location access is required before the attendance form can open.');
+ },{enableHighAccuracy:true,timeout:15000,maximumAge:0})
+}
 buttonEl.addEventListener('click',checkIn);loadConfiguration();
 </script>
 </body>
