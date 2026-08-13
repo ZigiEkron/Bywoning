@@ -1,0 +1,23 @@
+name: Probe Special Projects Elections API
+on:
+  push:
+    branches: [iec-api-extraction-2026-08-13]
+    paths:
+      - 'tools/probe_specialprojects_api.py'
+      - '.github/workflows/probe-specialprojects.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install requests
+      - run: python tools/probe_specialprojects_api.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: specialprojects-probe
+          path: sp_probe/
+          retention-days: 7
