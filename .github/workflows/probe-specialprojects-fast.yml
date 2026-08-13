@@ -1,0 +1,23 @@
+name: Probe Special Projects API fast
+on:
+  push:
+    branches: [iec-api-extraction-2026-08-13]
+    paths:
+      - 'tools/probe_specialprojects_fast.py'
+      - '.github/workflows/probe-specialprojects-fast.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install requests
+      - run: python tools/probe_specialprojects_fast.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: specialprojects-probe-fast
+          path: sp_fast/
+          retention-days: 7
