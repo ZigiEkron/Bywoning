@@ -1,0 +1,49 @@
+name: IEC by-election API extraction
+
+on:
+  push:
+    branches:
+      - iec-api-extraction-2026-08-13
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependency
+        run: python -m pip install --disable-pip-version-check requests
+
+      - name: Extract IEC by-election API data
+        env:
+          IEC_START_DATE: '2021-11-02'
+          IEC_END_DATE: '2026-08-13'
+          IEC_OUT: iec_api_output
+        run: python tools/iec_byelection_api_extract.py
+
+      - name: Show summary
+        if: always()
+        run: |
+          echo '--- output files ---'
+          find iec_api_output -maxdepth 1 -type f -printf '%f %s bytes\n' 2>/dev/null | sort || true
+          echo '--- summary ---'
+          cat iec_api_output/extraction_summary.json 2>/dev/null || true
+          echo '--- audit tail ---'
+          tail -30 iec_api_output/api_extraction_audit.csv 2>/dev/null || true
+
+      - name: Upload extraction artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iec-byelection-api-extraction
+          path: iec_api_output/
+          if-no-files-found: warn
+          retention-days: 7
